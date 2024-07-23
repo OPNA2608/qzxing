@@ -1,12 +1,15 @@
 cmake_minimum_required(VERSION 3.3)
 project(QZXing)
 
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
 option(BUILD_SHARED "Build as shared library" OFF)
 
 if(BUILD_SHARED)
     SET(SOVERSION_MAJOR 3)
     SET(SOVERSION_MINOR 3)
     SET(SOVERSION_PATCH 0)
+    SET(SOVERSION_FULL "${SOVERSION_MAJOR}.${SOVERSION_MINOR}.${SOVERSION_PATCH}")
 
     OPTION(QZXING_MULTIMEDIA "" OFF)
     OPTION(QZXING_USE_QML "" OFF)
@@ -39,6 +42,8 @@ set(PUBLIC_HEADERS
     QZXing_global.h
 )
 
+set(PUBLIC_DEFINES "")
+
 set(SOURCES
 
     CameraImageWrapper.cpp
@@ -53,7 +58,7 @@ if(QZXING_MULTIMEDIA)
 
     LIST(APPEND SOURCES QZXingFilter.cpp QZXingFilter.h)
     LIST(APPEND PUBLIC_HEADERS QZXingFilter.h)
-    add_definitions(-DQZXING_MULTIMEDIA)
+    LIST(APPEND PUBLIC_DEFINES QZXING_MULTIMEDIA)
 
     SET(QZXING_USE_QML ON)
 
@@ -62,18 +67,18 @@ endif(QZXING_MULTIMEDIA)
 if(QZXING_USE_QML)
     LIST(APPEND SOURCES QZXingImageProvider.cpp QZXingImageProvider.h)
     LIST(APPEND PUBLIC_HEADERS QZXingImageProvider.h)
-    add_definitions(-DQZXING_QML)
+    LIST(APPEND PUBLIC_DEFINES QZXING_QML)
 endif(QZXING_USE_QML)
 
 if(QZXING_USE_ENCODER)
-    add_definitions(-DENABLE_ENCODER_GENERIC -DENABLE_ENCODER_QR_CODE)
+    LIST(APPEND PUBLIC_DEFINES ENABLE_ENCODER_GENERIC ENABLE_ENCODER_QR_CODE)
 endif(QZXING_USE_ENCODER)
 
 if(BUILD_SHARED)
     add_library(qzxing SHARED ${SOURCES})
     set_target_properties(qzxing
         PROPERTIES
-        VERSION ${SOVERSION_MAJOR}.${SOVERSION_MINOR}.${SOVERSION_PATCH}
+        VERSION ${SOVERSION_FULL}
         SOVERSION ${SOVERSION_MAJOR}
 )
 else()
@@ -105,7 +110,6 @@ target_link_libraries(qzxing Qt5::Core Qt5::Gui)
 
 if(QZXING_MULTIMEDIA)
     target_link_libraries(qzxing Qt5::Multimedia)
-    target_compile_definitions(qzxing PUBLIC -DQZXING_MULTIMEDIA)
 endif(QZXING_MULTIMEDIA)
 
 if(QZXING_USE_QML)
@@ -113,12 +117,7 @@ if(QZXING_USE_QML)
         Qt5::Svg
         Qt5::Quick
         Qt5::QuickControls2)
-    target_compile_definitions(qzxing PUBLIC -DQZXING_QML)
 endif(QZXING_USE_QML)
-
-if(QZXING_USE_ENCODER)
-    target_compile_definitions(qzxing PUBLIC -DENABLE_ENCODER_GENERIC -DENABLE_ENCODER_QR_CODE)
-endif(QZXING_USE_ENCODER)
 
 if(QZXING_USE_DECODER_QR_CODE)
     target_compile_definitions(qzxing PRIVATE -DENABLE_DECODER_QR_CODE)
@@ -146,8 +145,10 @@ endif()
 
 if(!BUILD_SHARED)
     # Change Global Definitions depending on how you want to use the library
-    target_compile_definitions(qzxing PUBLIC DISABLE_LIBRARY_FEATURES)
+    list(APPEND PUBLIC_DEFINES DISABLE_LIBRARY_FEATURES)
 endif()
+
+target_compile_definitions(qzxing PUBLIC ${PUBLIC_DEFINES})
 
 # Target includes
 target_include_directories(qzxing
@@ -163,6 +164,7 @@ target_include_directories(qzxing
 
 if(BUILD_SHARED)
     include (GNUInstallDirs)
+    include (JoinPaths)
 
     set(QZXING_INSTALL_TARGETS qzxing)
 
@@ -176,4 +178,15 @@ if(BUILD_SHARED)
     install (
         FILES ${PUBLIC_HEADERS} DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/qzxing"
     )
+
+    join_paths(PC_LIBDIR "\${prefix}" "${CMAKE_INSTALL_LIBDIR}")
+    join_paths(PC_INCLUDEDIR "\${prefix}" "${CMAKE_INSTALL_INCLUDEDIR}" "qzxing")
+
+    string(REPLACE ";" " -D" PC_DEFINES "${PUBLIC_DEFINES}")
+    if(PC_DEFINES)
+        set(PC_DEFINES "-D${PC_DEFINES}")
+    endif()
+
+    configure_file(QZXing.pc.in ${CMAKE_CURRENT_BINARY_DIR}/QZXing.pc @ONLY)
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/QZXing.pc DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
 endif()
